@@ -222,6 +222,15 @@ export default function ApplyPage() {
         return;
       }
       const payload: any = { to, subject, body: maybeHtml ? undefined : body, html: maybeHtml };
+      // If user saved mailSender details, include them so server can decrypt and use per-user creds
+      if (profile?.mailSender?.email && profile?.mailSender?.password?.cipher && profile?.mailSender?.password?.iv && profile?.mailSender?.password?.tag) {
+        payload.fromEmail = profile.mailSender.email;
+        payload.mailPassword = {
+          cipher: profile.mailSender.password.cipher,
+          iv: profile.mailSender.password.iv,
+          tag: profile.mailSender.password.tag,
+        };
+      }
       if (resume) {
         payload.attachments = [
           {

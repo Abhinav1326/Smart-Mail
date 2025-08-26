@@ -15,6 +15,12 @@
 			"type": "shell",
 			"command": "npm run -s build",
 			"group": "build"
+		},
+		{
+			"label": "TypeCheck",
+			"type": "shell",
+			"command": "npm run -s build",
+			"group": "build"
 		}
 	]
 }

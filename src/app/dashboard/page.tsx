@@ -31,7 +31,11 @@ export default function Dashboard() {
   const [appsError, setAppsError] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [confirmId, setConfirmId] = useState<string | null>(null);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
   const selectedApp = useMemo(() => applications.find((a) => a.id === confirmId), [applications, confirmId]);
+  const [confirmDeleteAccount, setConfirmDeleteAccount] = useState(false);
+  const [deletingAccount, setDeletingAccount] = useState(false);
+  const [deleteAccountError, setDeleteAccountError] = useState<string | null>(null);
 
   const initials = useMemo(() => {
     const name = profile.fullName || user?.displayName || user?.email || "";
@@ -119,12 +123,60 @@ export default function Dashboard() {
   const deleteApplication = async (id: string) => {
     if (!id) return;
     setDeletingId(id);
+    setDeleteError(null);
     try {
       await deleteDoc(doc(db, "applications", id));
       setApplications((prev) => prev.filter((a) => a.id !== id));
       setConfirmId(null);
     } finally {
       setDeletingId(null);
+    }
+  };
+
+  const onRequestDelete = (id: string) => {
+    setDeleteError(null);
+    setConfirmId(id);
+  };
+
+  const onCancelDelete = () => {
+    setDeleteError(null);
+    setConfirmId(null);
+  };
+
+  const onConfirmDelete = async () => {
+    if (!confirmId) return;
+    try {
+      await deleteApplication(confirmId);
+    } catch (e: any) {
+      setDeleteError(e?.message || "Failed to delete record");
+    }
+  };
+
+  const deleteEntireAccount = async () => {
+    if (!user) return;
+    setDeletingAccount(true);
+    setDeleteAccountError(null);
+    try {
+      // Delete all applications for this user
+      const q = query(collection(db, "applications"), where("userId", "==", user.uid));
+      const snap = await getDocs(q);
+      const deletions: Promise<void>[] = [];
+      snap.forEach((d) => deletions.push(deleteDoc(doc(db, "applications", d.id))));
+      await Promise.allSettled(deletions);
+
+      // Delete profile document
+      await deleteDoc(doc(db, "users", user.uid));
+
+      // Local cleanup and sign out
+      setApplications([]);
+      setProfile({});
+      setConfirmDeleteAccount(false);
+      await signOut();
+      router.replace("/signin");
+    } catch (e: any) {
+      setDeleteAccountError(e?.message || "Failed to delete account");
+    } finally {
+      setDeletingAccount(false);
     }
   };
 
@@ -292,6 +344,19 @@ export default function Dashboard() {
             </div>
           </div>
         </motion.section>
+        
+        {/* Delete account button inside the profile card area (bottom-right) */}
+        <div className="-mt-6 mb-8 flex justify-end">
+          <motion.button
+            whileHover={{ y: -1 }}
+            whileTap={{ scale: 0.98 }}
+            onClick={() => { setDeleteAccountError(null); setConfirmDeleteAccount(true); }}
+            className="inline-flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-semibold text-white bg-red-600/90 hover:bg-red-600 cursor-pointer"
+          >
+            <svg className="h-4 w-4 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v2"/></svg>
+            <span>Delete account</span>
+          </motion.button>
+        </div>
 
         <motion.section
           className="rounded-2xl p-6 sm:p-8 bg-white/30 backdrop-blur-xl border border-white/40 shadow-lg shadow-black/[0.03]"
@@ -334,7 +399,7 @@ export default function Dashboard() {
                         <motion.button
                           whileHover={{ y: -1 }}
                           whileTap={{ scale: 0.98 }}
-                          onClick={() => setConfirmId(a.id)}
+                          onClick={() => onRequestDelete(a.id)}
                           disabled={deletingId === a.id}
                           className="rounded-lg px-3 py-1.5 text-sm font-semibold text-white bg-red-600/90 hover:bg-red-600 disabled:opacity-60 cursor-pointer"
                         >
@@ -368,17 +433,60 @@ export default function Dashboard() {
                 </p>
                 <div className="mt-6 flex items-center justify-end gap-3">
                   <button
-                    onClick={() => setConfirmId(null)}
+                    onClick={onCancelDelete}
                     className="rounded-lg px-4 py-2 text-gray-900 bg-white/60 border border-white/70 hover:bg-white/80 cursor-pointer"
                   >
                     Cancel
                   </button>
                   <button
-                    onClick={() => confirmId && deleteApplication(confirmId)}
+                    onClick={onConfirmDelete}
                     disabled={deletingId === confirmId}
                     className="rounded-lg px-4 py-2 font-semibold text-white bg-red-600 hover:bg-red-700 disabled:opacity-60 cursor-pointer"
                   >
                     {deletingId === confirmId ? "Deleting…" : "Delete"}
+                  </button>
+                  {deleteError && (
+                    <p className="mt-2 w-full text-right text-sm text-red-600">{deleteError}</p>
+                  )}
+                </div>
+              </motion.div>
+            </div>
+          </div>
+        )}
+
+        {confirmDeleteAccount && (
+          <div className="fixed inset-0 z-50">
+            <motion.div
+              className="absolute inset-0 bg-black/30 backdrop-blur-sm"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+            />
+            <div className="absolute inset-0 flex items-center justify-center p-4">
+              <motion.div
+                initial={{ opacity: 0, y: 10, scale: 0.98 }}
+                animate={{ opacity: 1, y: 0, scale: 1 }}
+                transition={{ duration: 0.2, ease: "easeOut" }}
+                className="w-full max-w-sm rounded-2xl bg-white/80 backdrop-blur-xl border border-white/60 shadow-lg p-6"
+              >
+                <h3 className="text-lg font-bold text-gray-900">Delete account?</h3>
+                <p className="mt-2 text-sm text-gray-700">This will permanently remove your profile and application history.</p>
+                {deleteAccountError && (
+                  <p className="mt-3 text-sm text-red-600">{deleteAccountError}</p>
+                )}
+                <div className="mt-6 flex items-center justify-end gap-3">
+                  <button
+                    onClick={() => { setConfirmDeleteAccount(false); setDeleteAccountError(null); }}
+                    disabled={deletingAccount}
+                    className="rounded-lg px-4 py-2 text-gray-900 bg-white/60 border border-white/70 hover:bg-white/80 cursor-pointer disabled:opacity-60"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={deleteEntireAccount}
+                    disabled={deletingAccount}
+                    className="rounded-lg px-4 py-2 font-semibold text-white bg-red-600 hover:bg-red-700 disabled:opacity-60 cursor-pointer"
+                  >
+                    {deletingAccount ? "Deleting…" : "Delete"}
                   </button>
                 </div>
               </motion.div>
