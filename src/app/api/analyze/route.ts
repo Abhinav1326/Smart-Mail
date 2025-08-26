@@ -51,7 +51,7 @@ ${resumeText || ""}
       if (process.env.DEBUG_GEMINI_PROMPT === "1" || process.env.NODE_ENV !== "production") {
         const max = 5000;
         const out = prompt.length > max ? prompt.slice(0, max) + "\n...[truncated]" : prompt;
-        console.log("[/api/analyze] Gemini prompt:\n", out);
+        // console.log("[/api/analyze] Gemini prompt:\n", out);
       }
     } catch {}
 
