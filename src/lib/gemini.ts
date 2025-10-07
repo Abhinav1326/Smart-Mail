@@ -1,7 +1,8 @@
 import { GoogleGenerativeAI } from "@google/generative-ai";
 
-// Ordered list of preferred / fallback models. New primary: gemini-2.5-flash
+// Ordered list of preferred / fallback models. New primary: gemini-2.5-flash-lite
 const FALLBACK_MODELS = [
+  "gemini-2.5-flash-lite",
   "gemini-2.5-flash",
   // Additional potential newer variants if released (harmless if not found; will fall through):
   "gemini-2.5-flash-latest",
